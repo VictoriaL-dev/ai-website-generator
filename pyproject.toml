@@ -1,7 +1,7 @@
 [project]
-name = "fastai-starter"
-version = "0.1.0"
-description = "FastAI Starter Repository for backend developers."
+name = "ai-website-generator"
+version = "1.0.0"
+description = "AI-powered website generator built with FastAP."
 readme = "README.md"
 requires-python = "==3.13.*"
 dependencies = [
