@@ -1,8 +1,12 @@
-lint: ## Check the code in the repository using linters
-	ruff check ./src
+run-dev: ## Start the FastAPI development server
+	uv run fastapi dev src/main.py
 
-format: ## Run the auto-formatter
-	ruff check --fix ./src
+lint: ## Check the code in the repository using linters
+	uv run ruff check ./src
+
+format: ## Run the auto-fixer and auto-formatter to clean up code
+	uv run ruff check --fix ./src
+	uv run ruff format ./src
 
 list: ## Display a list of available commands and their descriptions
 	@echo "List of available commands:"
