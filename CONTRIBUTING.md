@@ -16,7 +16,7 @@
 Create a file named `frontend-settings.json` inside the `frontend` folder with the following content to define the backend API prefix:
 ```json
 {
-    "backendBaseUrl": "/frontend-api/"
+    "backendBaseUrl": "/"
 }
 ```
 

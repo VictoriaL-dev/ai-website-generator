@@ -16,6 +16,7 @@ this service allows users to generate clean HTML, CSS, and JavaScript code insta
 - **Operating System:** Linux, macOS, or Windows
 - **Language:** `Python 3.13+`
 - **Python Package Manager:** `uv`
+- **Validation & Configuration:** `pydantic` & `pydantic-settings`
 - **Asynchronous Framework:** `FastAPI`
 
 
@@ -23,6 +24,7 @@ this service allows users to generate clean HTML, CSS, and JavaScript code insta
 ```text
 .
 ├── src/                       # Main application source code folder
+│   └── main.py                # Main application entry point
 ├── .editorconfig              # Consistent coding styles across different IDEs
 ├── .pre-commit-config.yaml    # Automates Git hooks to check code before commits
 ├── Makefile                   # Short commands for installation, testing, and running
