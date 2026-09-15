@@ -38,7 +38,7 @@ this service allows users to generate clean HTML, CSS, and JavaScript code insta
 - [GNU Make](https://www.gnu.org/software/make/)
 - [uv](https://docs.astral.sh/uv/)
 
-### Platform-Specific Setup:
+### Platform-Specific Setup
 #### Linux / macOS:
 To run the application, you will need the command-line versions of `Git` and `Make`.
 Consult the official websites above for installation instructions.
@@ -60,7 +60,7 @@ Additionally, you need to install `make` within `Git Bash`:
 
 **Run all subsequent commands from `Git Bash`.**
 
-### Basic Setup:
+### Backend Setup
 #### 1. Clone the repository:
 ```bash
 git clone https://github.com/...
@@ -68,8 +68,6 @@ cd project-directory
 ```
 
 #### 2. Set up a virtual environment:
-For code suggestions to work correctly in the IDE, you need to set up a virtual environment with all dependencies installed.
-
 [uv](https://docs.astral.sh/uv/) is used as the package manager for the project.
 
 [Install uv](https://gitlab.dvmn.org/root/fastapi-articles/-/wikis/Uv-package-manager#1-%D1%83%D1%81%D1%82%D0%B0%D0%BD%D0%BE%D0%B2%D0%BA%D0%B0-uv) and in the root of the repository run the command:
@@ -83,6 +81,9 @@ source .venv/bin/activate  # on Linux / macOS / Windows (via Git Bash)
 .venv\Scripts\activate  # on Windows
 ```
 
+### Frontend Setup
+You can find instructions on how to set up the frontend in the [CONTRIBUTING.md](./CONTRIBUTING.md#frontend-setup) file, under the "Frontend Setup" section.
+
 
 ## 🚀 Quick Start Guide
 ### Development Server Launch
@@ -93,4 +94,4 @@ fastapi dev src/main.py
 make run-dev
 ```
 
-Instructions and reference information regarding application development are collected in the [CONTRIBUTING.md](./CONTRIBUTING.md) document.
+Instructions and reference information regarding application development are collected in the [CONTRIBUTING.md](./CONTRIBUTING.md) file.
