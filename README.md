@@ -24,7 +24,10 @@ this service allows users to generate clean HTML, CSS, and JavaScript code insta
 ```text
 .
 ├── src/                       # Main application source code folder
+│   ├── api_models.py          # Pydantic models for API validation
+│   ├── config.py              # Central application settings mapper
 │   └── main.py                # Main application entry point
+├── mock_site.html             # Website for testing API functionality
 ├── .editorconfig              # Consistent coding styles across different IDEs
 ├── .pre-commit-config.yaml    # Automates Git hooks to check code before commits
 ├── Makefile                   # Short commands for installation, testing, and running
