@@ -58,6 +58,12 @@ fastapi dev src/main.py
 # or
 make run-dev
 ```
+
+Or, if you want to run the application on a custom host and port, you can use this command after specifying the `HOST` and `PORT` in the `.env` file:
+```bash
+uv run src/main.py
+```
+
 The application will be available at http://127.0.0.1:8000/.
 
 ### `uv` Package Manager

@@ -79,7 +79,7 @@ class SiteResponse(BaseModel):
 
 
 class SiteGenerationRequest(BaseModel):
-    prompt: str | None = Field(default=None, description="Prompt for website generation")
+    prompt: str = Field(description="Prompt for website generation")
 
     model_config = ConfigDict(
         alias_generator=to_camel,
@@ -95,7 +95,7 @@ class SiteGenerationRequest(BaseModel):
 
 
 class GeneratedSitesResponse(BaseModel):
-    sites: list[SiteResponse] = Field(description="List of all generated websites")
+    sites: list[SiteResponse] = Field(description="List of all user-generated websites")
 
     model_config = ConfigDict(
         alias_generator=to_camel,

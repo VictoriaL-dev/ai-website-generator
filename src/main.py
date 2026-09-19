@@ -1,10 +1,14 @@
-import asyncio
-from collections.abc import AsyncGenerator
-from pathlib import Path
+import random
+from contextlib import asynccontextmanager
+from datetime import datetime
 
-from fastapi import FastAPI
-from fastapi.responses import StreamingResponse
+import anyio
+import httpx
+import uvicorn
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
+from html_page_generator import AsyncDeepseekClient, AsyncUnsplashClient
 
 from api_models import (
     CreateSiteRequest,
@@ -13,39 +17,43 @@ from api_models import (
     SiteResponse,
     UserDetailsResponse,
 )
-from config import FRONTEND_DIR
+from env_settings import load_settings
+from generator import generate_web_page
 
-MOCK_HTML_FILE = Path("mock_site.html").absolute()
-MOCK_SITE_DATA = {
-    "id": 1,
-    "title": "My Site",
-    "html_code_url": "https://dvmn.org/media/filer_public/d1/4b/d14bb4e8-d8b4-49cb-928d-fd04ecae46da/index.html",
-    "html_code_download_url": "https://dvmn.org/media/filer_public/d1/4b/d14bb4e8-d8b4-49cb-928d-fd04ecae46da/index.html?response-content-disposition=attachment",
-    "screenshot_url": None,
-    "prompt": "Create a website.",
-    "created_at": "2026-09-15T18:29:56+00:00",
-    "updated_at": "2026-09-15T19:00:00+00:00"
-}
+loaded_settings = load_settings()
+
+GENERATED_SITES = loaded_settings.project_root / "generated_sites"
+GENERATED_SITES.mkdir(parents=True, exist_ok=True)
 
 
-async def fake_ai_generation_stream(file_path: Path, chunk_size: int = 512) -> AsyncGenerator:
-    """Reads the HTML file step-by-step and serves it in chunks."""
-    if not file_path.exists():
-        yield f"error: File '{file_path.name}' was not found on the disk."
-        return
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    app.state.settings = loaded_settings
+    app.state.storage = {}
+    app.state.generated_sites_dir = GENERATED_SITES
 
-    with open(file_path, "r", encoding="utf-8") as file:
-        while True:
-            chunk = file.read(chunk_size)
-            if not chunk:
-                break
+    async with (
+        AsyncUnsplashClient.setup(
+            unsplash_client_id=loaded_settings.UNSPLASH.API_KEY.get_secret_value(),
+            limits=httpx.Limits(max_connections=loaded_settings.UNSPLASH.MAX_CONNECTIONS),
+            timeout=httpx.Timeout(timeout=loaded_settings.UNSPLASH.TIMEOUT)
+        ),
+        AsyncDeepseekClient.setup(
+            deepseek_api_key=loaded_settings.DEEP_SEEK.API_KEY.get_secret_value(),
+            deepseek_base_url=loaded_settings.DEEP_SEEK.BASE_URL,
+            deepseek_model=loaded_settings.DEEP_SEEK.MODEL,
+            limits=httpx.Limits(max_connections=loaded_settings.DEEP_SEEK.MAX_CONNECTIONS),
+            timeout=httpx.Timeout(timeout=loaded_settings.DEEP_SEEK.TIMEOUT)
+        )
+    ):
+        yield
 
-            yield chunk
 
-            await asyncio.sleep(1)
-
-
-app = FastAPI(title="AI Website Generator", description="AI-powered website generator built with FastAPI")
+app = FastAPI(
+    title="AI Website Generator",
+    description="AI-powered website generator built with FastAPI",
+    lifespan=lifespan
+)
 
 
 @app.get(
@@ -55,7 +63,7 @@ app = FastAPI(title="AI Website Generator", description="AI-powered website gene
     response_description="User credentials",
     response_model=UserDetailsResponse,
 )
-def get_user():
+async def get_user():
     mock_user_data = {
         "profileId": 1,
         "username": "user123",
@@ -71,14 +79,30 @@ def get_user():
     "/sites/create",
     tags=["Sites"],
     summary="Create a new website from a user prompt",
-    response_description="Generated website",
+    response_description="Generated website data",
     response_model=SiteResponse
 )
-def create_site(payload: CreateSiteRequest):
-    new_site = MOCK_SITE_DATA.copy()
-    if payload.title:
-        new_site["title"] = payload.title
-    new_site["prompt"] = payload.prompt
+async def create_site(payload: CreateSiteRequest, request: Request):
+    settings = request.app.state.settings
+    storage = request.app.state.storage
+    generated_sites_dir = request.app.state.generated_sites_dir
+
+    site_id = random.randint(1, 9999)
+
+    base_url = f"http://{settings.HOST}:{settings.PORT}"
+    file_url = f"{base_url}/{generated_sites_dir.name}/site_{site_id}.html"
+
+    new_site = {
+        "id": site_id,
+        "title": payload.title or f"Website №{site_id}",
+        "prompt": payload.prompt,
+        "html_code_url": file_url,
+        "html_code_download_url": f"{file_url}?response-content-disposition=attachment",
+        "screenshot_url": None,
+        "createdAt": datetime.now(),
+        "updatedAt": datetime.now()
+    }
+    storage[site_id] = new_site
     return new_site
 
 
@@ -88,9 +112,31 @@ def create_site(payload: CreateSiteRequest):
     summary="Generate a website with AI stream",
     response_description="Chunks of HTML code from the generated website",
 )
-async def generate_site(site_id: int, payload: SiteGenerationRequest):
+async def generate_site(site_id: int, payload: SiteGenerationRequest, request: Request):
+    settings = request.app.state.settings
+    storage = request.app.state.storage
+    generated_sites_dir = request.app.state.generated_sites_dir
+
+    site = storage.get(site_id)
+    if not site:
+        return JSONResponse(
+            content={"status_code": 404, "detail": "Not Found"},
+            status_code=404
+        )
+
+    file_path = anyio.Path(generated_sites_dir.name) / f"site_{site_id}.html"
+
+    async def handle_title(generated_title: str):
+        site["title"] = generated_title
+
     return StreamingResponse(
-        fake_ai_generation_stream(file_path=MOCK_HTML_FILE, chunk_size=512),
+        generate_web_page(
+            user_prompt=payload.prompt,
+            file_path=file_path,
+            debug_mode=settings.DEBUG,
+            request=request,
+            on_title_found=handle_title
+        ),
         media_type="text/plain; charset=utf-8"
     )
 
@@ -102,9 +148,10 @@ async def generate_site(site_id: int, payload: SiteGenerationRequest):
     response_description="User-generated websites",
     response_model=GeneratedSitesResponse
 )
-async def get_user_sites():
+async def get_user_sites(request: Request):
+    storage = request.app.state.storage
     return {
-        "sites": [MOCK_SITE_DATA]
+        "sites": list(storage.values())
     }
 
 
@@ -115,11 +162,26 @@ async def get_user_sites():
     response_description="HTML code of the generated website",
     response_model=SiteResponse
 )
-async def get_site_by_id(site_id: int):
-    site_data = MOCK_SITE_DATA.copy()
-    site_data["site_id"] = site_id
-    return site_data
+async def get_site_by_id(site_id: int, request: Request):
+    storage = request.app.state.storage
+
+    site = storage.get(site_id)
+    if not site:
+        return JSONResponse(
+            content={"status_code": 404, "detail": "Not Found"},
+            status_code=404
+        )
+    return site
 
 
-app.mount("/assets", StaticFiles(directory=f"{FRONTEND_DIR}/assets"), name="assets")
-app.mount("/", StaticFiles(directory=FRONTEND_DIR, html=True), name="frontend")
+app.mount("/generated_sites", StaticFiles(directory=GENERATED_SITES), name="generated_sites")
+app.mount("/assets", StaticFiles(directory=loaded_settings.FRONTEND_DIR / "assets"), name="assets")
+app.mount("/", StaticFiles(directory=loaded_settings.FRONTEND_DIR, html=True), name="frontend")
+
+if __name__ == "__main__":
+    uvicorn.run(
+        "main:app",
+        host=loaded_settings.HOST,
+        port=loaded_settings.PORT,
+        reload=loaded_settings.DEBUG
+    )

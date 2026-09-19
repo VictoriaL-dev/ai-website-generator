@@ -1,7 +1,7 @@
 # 🤖 AI Website Generator
-AI Website Generator is a high-performance, asynchronous web application powered by FastAPI that transforms natural
-language prompts into fully functional websites. By bridging the gap between generative AI and modern web technologies,
-this service allows users to generate clean HTML, CSS, and JavaScript code instantly from a simple text description.
+AI Website Generator is a high-performance, asynchronous web application powered by `FastAPI` that transforms natural
+language prompts into fully functional websites. By bridging the gap between generative `AI` and modern web technologies,
+this service allows users to generate clean `HTML`, `CSS`, and `JavaScript` code instantly from a simple text description.
 
 
 ## 📌 Table of Contents
@@ -18,6 +18,9 @@ this service allows users to generate clean HTML, CSS, and JavaScript code insta
 - **Python Package Manager:** `uv`
 - **Validation & Configuration:** `pydantic` & `pydantic-settings`
 - **Asynchronous Framework:** `FastAPI`
+- **Web Page Generator:** `html-page-generator`
+- **AI Model API:** `DeepSeek`
+- **Content Provider API:** `Unsplash`
 
 
 ## 📁 Project Structure
@@ -25,12 +28,13 @@ this service allows users to generate clean HTML, CSS, and JavaScript code insta
 .
 ├── src/                       # Main application source code folder
 │   ├── api_models.py          # Pydantic models for API validation
-│   ├── config.py              # Central application settings mapper
+│   ├── env_settings.py        # Central application settings mapper
+│   ├── generator.py           # Module responsible for asynchronous site generation
 │   └── main.py                # Main application entry point
-├── mock_site.html             # Website for testing API functionality
+├── .env.example               # Example of environment variable configuration
 ├── .editorconfig              # Consistent coding styles across different IDEs
 ├── .pre-commit-config.yaml    # Automates Git hooks to check code before commits
-├── Makefile                   # Short commands for installation, testing, and running
+├── Makefile                   # Short commands for checking, formatting, and running the application
 ├── pyproject.toml             # Main configuration file for project metadata and tools
 ├── ruff.toml                  # Custom rules for the Ruff linter and formatter
 └── uv.lock                    # Lockfile ensuring deterministic and reproducible dependencies
@@ -42,6 +46,8 @@ this service allows users to generate clean HTML, CSS, and JavaScript code insta
 - [Git SCM](https://git-scm.com/)
 - [GNU Make](https://www.gnu.org/software/make/)
 - [uv](https://docs.astral.sh/uv/)
+- DeepSeek API Key (from the official [DeepSeek](https://api-docs.deepseek.com/) source or any other, such as [BotHub](https://bothub.chat/))
+- [Unsplash Access Key](https://unsplash.com/documentation#getting-started)
 
 ### Platform-Specific Setup
 #### Linux / macOS:
@@ -86,8 +92,30 @@ source .venv/bin/activate  # on Linux / macOS / Windows (via Git Bash)
 .venv\Scripts\activate  # on Windows
 ```
 
+#### 3. Configure environment variables:
+Create a `.env` file in the root directory based on `.env.example`:
+```dotenv
+# AI Website Generator
+HOST=127.0.0.1
+PORT=8000
+DEBUG=True
+FRONTEND_DIR=frontend
+
+# DeepSeek
+DEEP_SEEK__API_KEY=your_secret_deepseek_api_key
+DEEP_SEEK__BASE_URL=your_deepseek_base_url
+DEEP_SEEK__MODEL=your_deepseek_model_name
+DEEP_SEEK__MAX_CONNECTIONS=5
+DEEP_SEEK__TIMEOUT=20
+
+# Unsplash
+UNSPLASH__API_KEY=your_secret_unsplash_api_key
+UNSPLASH__MAX_CONNECTIONS=5
+UNSPLASH__TIMEOUT=20
+```
+
 ### Frontend Setup
-You can find instructions on how to set up the frontend in the [CONTRIBUTING.md](./CONTRIBUTING.md#frontend-setup) file, under the "Frontend Setup" section.
+You can find instructions on how to set up the frontend in the [CONTRIBUTING.md](./CONTRIBUTING.md#frontend-setup) file, under the _Frontend Setup_ section.
 
 
 ## 🚀 Quick Start Guide
@@ -97,6 +125,11 @@ From the project's root directory, you can launch the project with the following
 fastapi dev src/main.py
 # or
 make run-dev
+```
+
+Or, if you want to run the application on a custom host and port, you can use this command after specifying the `HOST` and `PORT` in the `.env` file:
+```bash
+uv run src/main.py
 ```
 
 Instructions and reference information regarding application development are collected in the [CONTRIBUTING.md](./CONTRIBUTING.md) file.
