@@ -61,7 +61,7 @@ async def create_site_record(
         "prompt": prompt,
         "html_code_url": html_code_url,
         "html_code_download_url": html_code_download_url,
-        "screenshot_url": html_code_url,
+        "screenshot_url": None,
         "created_at": datetime.now(),
         "updated_at": datetime.now()
     }

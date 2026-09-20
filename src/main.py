@@ -42,25 +42,38 @@ async def lifespan(app: FastAPI):
         aws_secret_access_key=settings.S3.SECRET_KEY.get_secret_value()
     )
 
-    async with s3_session.client("s3", endpoint_url=settings.S3.BASE_URL, config=s3_config) as s3_client:
+    async with (
+        s3_session.client(
+            service_name="s3",
+            endpoint_url=settings.S3.BASE_URL,
+            config=s3_config
+        ) as s3_client,
+        AsyncUnsplashClient.setup(
+            unsplash_client_id=settings.UNSPLASH.API_KEY.get_secret_value(),
+            limits=httpx.Limits(max_connections=settings.UNSPLASH.MAX_CONNECTIONS),
+            timeout=httpx.Timeout(timeout=settings.UNSPLASH.TIMEOUT)
+        ) as unsplash_client,
+        AsyncDeepseekClient.setup(
+            deepseek_api_key=settings.DEEP_SEEK.API_KEY.get_secret_value(),
+            deepseek_base_url=settings.DEEP_SEEK.BASE_URL,
+            deepseek_model=settings.DEEP_SEEK.MODEL,
+            limits=httpx.Limits(max_connections=settings.DEEP_SEEK.MAX_CONNECTIONS),
+            timeout=httpx.Timeout(timeout=settings.DEEP_SEEK.TIMEOUT)
+        ) as deepseek_client,
+        httpx.AsyncClient(
+            base_url=settings.GOTENBERG.BASE_URL,
+            limits=httpx.Limits(max_connections=settings.GOTENBERG.MAX_CONNECTIONS),
+            timeout=httpx.Timeout(timeout=settings.GOTENBERG.SCREENSHOT_TIMEOUT)
+        ) as gotenberg_client,
+    ):
         app.state.s3_client = s3_client
+        app.state.unsplash_client = unsplash_client
+        app.state.deepseek_client = deepseek_client
+        app.state.gotenberg_client = gotenberg_client
+
         await ensure_bucket_exists(s3_client=s3_client, bucket_name=settings.S3.BUCKET_NAME)
 
-        async with (
-            AsyncUnsplashClient.setup(
-                unsplash_client_id=settings.UNSPLASH.API_KEY.get_secret_value(),
-                limits=httpx.Limits(max_connections=settings.UNSPLASH.MAX_CONNECTIONS),
-                timeout=httpx.Timeout(timeout=settings.UNSPLASH.TIMEOUT)
-            ),
-            AsyncDeepseekClient.setup(
-                deepseek_api_key=settings.DEEP_SEEK.API_KEY.get_secret_value(),
-                deepseek_base_url=settings.DEEP_SEEK.BASE_URL,
-                deepseek_model=settings.DEEP_SEEK.MODEL,
-                limits=httpx.Limits(max_connections=settings.DEEP_SEEK.MAX_CONNECTIONS),
-                timeout=httpx.Timeout(timeout=settings.DEEP_SEEK.TIMEOUT)
-            )
-        ):
-            yield
+        yield
 
 
 app = FastAPI(

@@ -1,5 +1,6 @@
 from functools import lru_cache
 from pathlib import Path
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, PositiveFloat, PositiveInt, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -37,6 +38,17 @@ class S3Settings(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
+class GotenbergSettings(BaseModel):
+    BASE_URL: str = "https://demo.gotenberg.dev"
+    SCREENSHOT_WIDTH: PositiveInt = 1280
+    SCREENSHOT_FORMAT: Literal["png", "jpeg", "webp"] = "jpeg"
+    MAX_CONNECTIONS: PositiveInt = 5
+    SCREENSHOT_TIMEOUT: PositiveInt | PositiveFloat = 20
+    ANIMATION_TIMEOUT: PositiveInt | PositiveFloat = 5
+
+    model_config = ConfigDict(extra="forbid")
+
+
 class AppSettings(BaseSettings):
     HOST: str = "127.0.0.1"
     PORT: int = 8000
@@ -46,6 +58,7 @@ class AppSettings(BaseSettings):
     DEEP_SEEK: DeepSeekSettings
     UNSPLASH: UnsplashSettings
     S3: S3Settings
+    GOTENBERG: GotenbergSettings
 
     @property
     def project_root(self):

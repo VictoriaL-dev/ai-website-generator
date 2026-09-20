@@ -6,6 +6,7 @@ import httpx
 from fastapi import Request
 from html_page_generator import AsyncPageGenerator
 
+from screenshot import create_and_save_screenshot
 from storage import save_html_to_s3
 
 
@@ -23,6 +24,9 @@ async def generate_web_page(
             client_disconnected = False
 
             async for chunk in generator(user_prompt=user_prompt):
+                if not isinstance(chunk, str):
+                    chunk = str(chunk)
+
                 yield chunk
 
                 print(chunk, end="", flush=True)
@@ -45,6 +49,15 @@ async def generate_web_page(
                     html_code=generator.html_page.html_code
                 )
                 print(f"\nFile with ID {site_id} has been successfully saved to bucket.")
+                await create_and_save_screenshot(
+                    site_id=site_id,
+                    html_code=generator.html_page.html_code,
+                    gotenberg_client=request.app.state.gotenberg_client,
+                    gotenberg_settings=request.app.state.settings.GOTENBERG,
+                    s3_client=request.app.state.s3_client,
+                    s3_settings=request.app.state.settings.S3,
+                    database=request.app.state.database
+                )
         except httpx.HTTPStatusError as e:
             print(f"\nA third-party service returned an error: {e.response.status_code} - {e.response.text}.")
             raise
