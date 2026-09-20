@@ -49,22 +49,6 @@ If you need to make a commit without checks, you can disable them using the `--n
 git commit -m "message" --no-verify
 ```
 
-### Launch The Application
-The project code is located in the `/src` folder.
-
-From the project's root directory, you can launch the project with the following command:
-```bash
-fastapi dev src/main.py
-# or
-make run-dev
-```
-
-Or, if you want to run the application on a custom host and port, you can use this command after specifying the `HOST` and `PORT` in the `.env` file:
-```bash
-uv run src/main.py
-```
-
-The application will be available at http://127.0.0.1:8000/.
 
 ### `uv` Package Manager
 [uv](https://docs.astral.sh/uv/) is used as the package manager.
@@ -84,6 +68,7 @@ If you need to update `uv.lock` manually, use the following command:
 ```bash
 uv lock
 ```
+
 
 ### Quick-Start Commands Using `make`
 To display a list of frequently used short commands, use the command:

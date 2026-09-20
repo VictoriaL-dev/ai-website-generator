@@ -1,10 +1,10 @@
 import random
 from contextlib import asynccontextmanager
-from datetime import datetime
 
-import anyio
+import aioboto3
 import httpx
 import uvicorn
+from aiobotocore.config import AioConfig
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
@@ -19,34 +19,48 @@ from api_models import (
 )
 from env_settings import load_settings
 from generator import generate_web_page
+from storage import create_site_record, ensure_bucket_exists, get_all_sites, update_site_title
 
 loaded_settings = load_settings()
-
-GENERATED_SITES = loaded_settings.project_root / "generated_sites"
-GENERATED_SITES.mkdir(parents=True, exist_ok=True)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     app.state.settings = loaded_settings
-    app.state.storage = {}
-    app.state.generated_sites_dir = GENERATED_SITES
+    app.state.database = {}
 
-    async with (
-        AsyncUnsplashClient.setup(
-            unsplash_client_id=loaded_settings.UNSPLASH.API_KEY.get_secret_value(),
-            limits=httpx.Limits(max_connections=loaded_settings.UNSPLASH.MAX_CONNECTIONS),
-            timeout=httpx.Timeout(timeout=loaded_settings.UNSPLASH.TIMEOUT)
-        ),
-        AsyncDeepseekClient.setup(
-            deepseek_api_key=loaded_settings.DEEP_SEEK.API_KEY.get_secret_value(),
-            deepseek_base_url=loaded_settings.DEEP_SEEK.BASE_URL,
-            deepseek_model=loaded_settings.DEEP_SEEK.MODEL,
-            limits=httpx.Limits(max_connections=loaded_settings.DEEP_SEEK.MAX_CONNECTIONS),
-            timeout=httpx.Timeout(timeout=loaded_settings.DEEP_SEEK.TIMEOUT)
-        )
-    ):
-        yield
+    settings = app.state.settings
+
+    s3_config = AioConfig(
+        s3={"addressing_style": "path"},
+        max_pool_connections=settings.S3.MAX_CONNECTIONS,
+        connect_timeout=settings.S3.CONNECTION_TIMEOUT,
+        read_timeout=settings.S3.READ_TIMEOUT
+    )
+    s3_session = aioboto3.Session(
+        aws_access_key_id=settings.S3.ACCESS_KEY,
+        aws_secret_access_key=settings.S3.SECRET_KEY.get_secret_value()
+    )
+
+    async with s3_session.client("s3", endpoint_url=settings.S3.BASE_URL, config=s3_config) as s3_client:
+        app.state.s3_client = s3_client
+        await ensure_bucket_exists(s3_client=s3_client, bucket_name=settings.S3.BUCKET_NAME)
+
+        async with (
+            AsyncUnsplashClient.setup(
+                unsplash_client_id=settings.UNSPLASH.API_KEY.get_secret_value(),
+                limits=httpx.Limits(max_connections=settings.UNSPLASH.MAX_CONNECTIONS),
+                timeout=httpx.Timeout(timeout=settings.UNSPLASH.TIMEOUT)
+            ),
+            AsyncDeepseekClient.setup(
+                deepseek_api_key=settings.DEEP_SEEK.API_KEY.get_secret_value(),
+                deepseek_base_url=settings.DEEP_SEEK.BASE_URL,
+                deepseek_model=settings.DEEP_SEEK.MODEL,
+                limits=httpx.Limits(max_connections=settings.DEEP_SEEK.MAX_CONNECTIONS),
+                timeout=httpx.Timeout(timeout=settings.DEEP_SEEK.TIMEOUT)
+            )
+        ):
+            yield
 
 
 app = FastAPI(
@@ -84,25 +98,18 @@ async def get_user():
 )
 async def create_site(payload: CreateSiteRequest, request: Request):
     settings = request.app.state.settings
-    storage = request.app.state.storage
-    generated_sites_dir = request.app.state.generated_sites_dir
+    database = request.app.state.database
 
-    site_id = random.randint(1, 9999)
+    site_id = random.randint(1, 100000)
+    title = payload.title or "Generated Website"
 
-    base_url = f"http://{settings.HOST}:{settings.PORT}"
-    file_url = f"{base_url}/{generated_sites_dir.name}/site_{site_id}.html"
-
-    new_site = {
-        "id": site_id,
-        "title": payload.title or f"Website №{site_id}",
-        "prompt": payload.prompt,
-        "html_code_url": file_url,
-        "html_code_download_url": f"{file_url}?response-content-disposition=attachment",
-        "screenshot_url": None,
-        "createdAt": datetime.now(),
-        "updatedAt": datetime.now()
-    }
-    storage[site_id] = new_site
+    new_site = await create_site_record(
+        s3_settings=settings.S3,
+        site_id=site_id,
+        title=title,
+        prompt=payload.prompt,
+        database=database
+    )
     return new_site
 
 
@@ -114,25 +121,22 @@ async def create_site(payload: CreateSiteRequest, request: Request):
 )
 async def generate_site(site_id: int, payload: SiteGenerationRequest, request: Request):
     settings = request.app.state.settings
-    storage = request.app.state.storage
-    generated_sites_dir = request.app.state.generated_sites_dir
+    database = request.app.state.database
 
-    site = storage.get(site_id)
+    site = database.get(site_id)
     if not site:
         return JSONResponse(
             content={"status_code": 404, "detail": "Not Found"},
             status_code=404
         )
 
-    file_path = anyio.Path(generated_sites_dir.name) / f"site_{site_id}.html"
-
     async def handle_title(generated_title: str):
-        site["title"] = generated_title
+        update_site_title(database=database, site_id=site_id, title=generated_title)
 
     return StreamingResponse(
         generate_web_page(
+            site_id=site_id,
             user_prompt=payload.prompt,
-            file_path=file_path,
             debug_mode=settings.DEBUG,
             request=request,
             on_title_found=handle_title
@@ -149,10 +153,9 @@ async def generate_site(site_id: int, payload: SiteGenerationRequest, request: R
     response_model=GeneratedSitesResponse
 )
 async def get_user_sites(request: Request):
-    storage = request.app.state.storage
-    return {
-        "sites": list(storage.values())
-    }
+    database = request.app.state.database
+    sites = get_all_sites(database=database)
+    return {"sites": sites}
 
 
 @app.get(
@@ -163,9 +166,9 @@ async def get_user_sites(request: Request):
     response_model=SiteResponse
 )
 async def get_site_by_id(site_id: int, request: Request):
-    storage = request.app.state.storage
+    database = request.app.state.database
 
-    site = storage.get(site_id)
+    site = database.get(site_id)
     if not site:
         return JSONResponse(
             content={"status_code": 404, "detail": "Not Found"},
@@ -174,7 +177,6 @@ async def get_site_by_id(site_id: int, request: Request):
     return site
 
 
-app.mount("/generated_sites", StaticFiles(directory=GENERATED_SITES), name="generated_sites")
 app.mount("/assets", StaticFiles(directory=loaded_settings.FRONTEND_DIR / "assets"), name="assets")
 app.mount("/", StaticFiles(directory=loaded_settings.FRONTEND_DIR, html=True), name="frontend")
 

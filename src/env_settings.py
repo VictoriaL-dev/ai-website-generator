@@ -23,6 +23,20 @@ class UnsplashSettings(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
+class S3Settings(BaseModel):
+    BASE_URL: str = "http://127.0.0.1:9000"
+    API_PORT: int = 9000
+    MINIO_PORT: int = 9001
+    ACCESS_KEY: str
+    SECRET_KEY: SecretStr
+    BUCKET_NAME: str = "generated-sites"
+    MAX_CONNECTIONS: PositiveInt = 5
+    CONNECTION_TIMEOUT: PositiveInt | PositiveFloat = 10
+    READ_TIMEOUT: PositiveInt | PositiveFloat = 10
+
+    model_config = ConfigDict(extra="forbid")
+
+
 class AppSettings(BaseSettings):
     HOST: str = "127.0.0.1"
     PORT: int = 8000
@@ -31,6 +45,7 @@ class AppSettings(BaseSettings):
 
     DEEP_SEEK: DeepSeekSettings
     UNSPLASH: UnsplashSettings
+    S3: S3Settings
 
     @property
     def project_root(self):

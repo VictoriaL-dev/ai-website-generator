@@ -16,11 +16,13 @@ this service allows users to generate clean `HTML`, `CSS`, and `JavaScript` code
 - **Operating System:** Linux, macOS, or Windows
 - **Language:** `Python 3.13+`
 - **Python Package Manager:** `uv`
+- **Simple Storage Service:** `MinIO` (via Docker)
 - **Validation & Configuration:** `pydantic` & `pydantic-settings`
 - **Asynchronous Framework:** `FastAPI`
 - **Web Page Generator:** `html-page-generator`
 - **AI Model API:** `DeepSeek`
 - **Content Provider API:** `Unsplash`
+- **Containerization & Orchestration:** `Docker` & `Docker Compose`
 
 
 ## 📁 Project Structure
@@ -30,6 +32,7 @@ this service allows users to generate clean `HTML`, `CSS`, and `JavaScript` code
 │   ├── api_models.py          # Pydantic models for API validation
 │   ├── env_settings.py        # Central application settings mapper
 │   ├── generator.py           # Module responsible for asynchronous site generation
+│   ├── storage.py             # S3 (MinIO) integration module
 │   └── main.py                # Main application entry point
 ├── .env.example               # Example of environment variable configuration
 ├── .editorconfig              # Consistent coding styles across different IDEs
@@ -37,12 +40,14 @@ this service allows users to generate clean `HTML`, `CSS`, and `JavaScript` code
 ├── Makefile                   # Short commands for checking, formatting, and running the application
 ├── pyproject.toml             # Main configuration file for project metadata and tools
 ├── ruff.toml                  # Custom rules for the Ruff linter and formatter
-└── uv.lock                    # Lockfile ensuring deterministic and reproducible dependencies
+├── uv.lock                    # Lockfile ensuring deterministic and reproducible dependencies
+└── docker-compose-dev.yaml    # Docker services orchestration
 ```
 
 
 ## 🛠️ Installation and Setup
 ### Prerequisites:
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/)
 - [Git SCM](https://git-scm.com/)
 - [GNU Make](https://www.gnu.org/software/make/)
 - [uv](https://docs.astral.sh/uv/)
@@ -112,6 +117,17 @@ DEEP_SEEK__TIMEOUT=20
 UNSPLASH__API_KEY=your_secret_unsplash_api_key
 UNSPLASH__MAX_CONNECTIONS=5
 UNSPLASH__TIMEOUT=20
+
+# MinIO (S3)
+S3__BASE_URL=http://127.0.0.1:9000
+S3__API_PORT=9000
+S3__MINIO_PORT=9001
+S3__ACCESS_KEY=minioadmin
+S3__SECRET_KEY=your_secret_minio_password
+S3__BUCKET_NAME=generated-sites
+S3__MAX_CONNECTIONS=5
+S3__CONNECTION_TIMEOUT=10
+S3__READ_TIMEOUT=10
 ```
 
 ### Frontend Setup
@@ -120,7 +136,14 @@ You can find instructions on how to set up the frontend in the [CONTRIBUTING.md]
 
 ## 🚀 Quick Start Guide
 ### Development Server Launch
-From the project's root directory, you can launch the project with the following command:
+#### 1. To begin with, you need to spin up `MinIO` in a `Docker` container:
+```bash
+docker compose -f docker-compose-dev.yaml up
+```
+> ℹ️ _Note: `MinIO` will automatically create a bucket with the name specified in the `S3__BUCKET_NAME` variable in the 
+`.env` file and make it public for ease of local development._
+
+#### 2. Launch the application with the following command:
 ```bash
 fastapi dev src/main.py
 # or
@@ -131,5 +154,7 @@ Or, if you want to run the application on a custom host and port, you can use th
 ```bash
 uv run src/main.py
 ```
+
+The application will be available at http://127.0.0.1:8000/.
 
 Instructions and reference information regarding application development are collected in the [CONTRIBUTING.md](./CONTRIBUTING.md) file.

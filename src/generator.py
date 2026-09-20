@@ -6,10 +6,12 @@ import httpx
 from fastapi import Request
 from html_page_generator import AsyncPageGenerator
 
+from storage import save_html_to_s3
+
 
 async def generate_web_page(
+    site_id: int,
     user_prompt: str,
-    file_path: anyio.Path,
     debug_mode: bool,
     request: Request,
     on_title_found: Callable[[str], Awaitable[None]] | None = None
@@ -36,8 +38,13 @@ async def generate_web_page(
                     break
 
             if not client_disconnected and generator.html_page.html_code:
-                await file_path.write_text(generator.html_page.html_code, encoding="utf-8")
-                print(f"\nFile '{file_path}' has been successfully saved.")
+                await save_html_to_s3(
+                    s3_client=request.app.state.s3_client,
+                    bucket_name=request.app.state.settings.S3.BUCKET_NAME,
+                    site_id=site_id,
+                    html_code=generator.html_page.html_code
+                )
+                print(f"\nFile with ID {site_id} has been successfully saved to bucket.")
         except httpx.HTTPStatusError as e:
             print(f"\nA third-party service returned an error: {e.response.status_code} - {e.response.text}.")
             raise
