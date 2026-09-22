@@ -1,11 +1,12 @@
-import traceback
 from urllib.parse import urljoin
 
 import httpx
 from aiobotocore.client import AioBaseClient
 from gotenberg_api import GotenbergServerError, ScreenshotHTMLRequest
+from loguru import logger
 
 from env_settings import GotenbergSettings, S3Settings
+from storage import save_screenshot_to_s3
 
 
 async def create_and_save_screenshot(
@@ -18,6 +19,7 @@ async def create_and_save_screenshot(
     database: dict
 ) -> None:
     """Generates a screenshot via Gotenberg API and saves it to MinIO S3."""
+    logger.info(f"Requesting screenshot from Gotenberg for site {site_id}")
     try:
         screenshot_bytes = await ScreenshotHTMLRequest(
             index_html=html_code,
@@ -26,25 +28,23 @@ async def create_and_save_screenshot(
             wait_delay=gotenberg_settings.ANIMATION_TIMEOUT,
         ).asend(gotenberg_client)
 
-        screenshot_key = f"screenshot_{site_id}.{gotenberg_settings.SCREENSHOT_FORMAT}"
-
-        await s3_client.put_object(
-            Bucket=s3_settings.BUCKET_NAME,
-            Key=screenshot_key,
-            Body=screenshot_bytes,
-            ContentType=f"image/{gotenberg_settings.SCREENSHOT_FORMAT}",
+        await save_screenshot_to_s3(
+            s3_client=s3_client,
+            bucket_name=s3_settings.BUCKET_NAME,
+            site_id=site_id,
+            screenshot_bytes=screenshot_bytes,
+            screenshot_format=gotenberg_settings.SCREENSHOT_FORMAT
         )
 
+        screenshot_key = f"screenshot_{site_id}.{gotenberg_settings.SCREENSHOT_FORMAT}"
         if site_id in database:
             base_url = s3_settings.BASE_URL
             file_path = f"{s3_settings.BUCKET_NAME}/{screenshot_key}"
             full_file_path = urljoin(base_url, file_path)
 
             database[site_id]["screenshot_url"] = full_file_path
-
-        print(f"Screenshot for site with ID {site_id} successfully saved to S3.")
+            logger.info(f"Screenshot URL updated for site {site_id}")
     except GotenbergServerError as e:
-        print(f"Gotenberg returned an error while rendering screenshot {site_id}: {e}")
+        logger.error(f"Gotenberg rendering engine failed for site {site_id}: {e}")
     except Exception as e:
-        print(f"Error processing screenshot for {site_id}: {e}")
-        traceback.print_exc()
+        logger.exception(f"Unexpected error during screenshot processing for site {site_id}: {e}")

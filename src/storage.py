@@ -4,6 +4,7 @@ from urllib.parse import urlencode, urljoin
 
 from aiobotocore.client import AioBaseClient
 from botocore.exceptions import ClientError
+from loguru import logger
 
 from env_settings import S3Settings
 
@@ -13,7 +14,8 @@ async def ensure_bucket_exists(s3_client: AioBaseClient, bucket_name: str) -> No
     try:
         await s3_client.head_bucket(Bucket=bucket_name)
     except ClientError:
-        raise RuntimeError(f"An error occurred: Bucket '{bucket_name}' not found")
+        logger.critical(f"Bucket {bucket_name} not found")
+        raise RuntimeError(f"Bucket {bucket_name} not found")
 
 
 async def save_html_to_s3(
@@ -23,17 +25,52 @@ async def save_html_to_s3(
     html_code: str
 ) -> None:
     """Uploads a file with the `text/html` type to a bucket."""
-    await s3_client.put_object(
-        Bucket=bucket_name,
-        Key=f"site_{site_id}.html",
-        Body=html_code.encode("utf-8"),
-        ContentType="text/html",
-        ContentEncoding="utf-8"
-    )
+    site_key = f"site_{site_id}.html"
+    try:
+        await s3_client.put_object(
+            Bucket=bucket_name,
+            Key=site_key,
+            Body=html_code.encode("utf-8"),
+            ContentType="text/html",
+            ContentEncoding="utf-8"
+        )
+        logger.success(f"{site_key} has been successfully saved to {bucket_name} bucket")
+    except ClientError as e:
+        logger.error(f"Failed to put {site_key} into {bucket_name} bucket: {e}")
+        return
+    except Exception as e:
+        logger.exception(f"Unexpected error saving HTML to S3: {e}")
+        return
+
+
+async def save_screenshot_to_s3(
+    s3_client: AioBaseClient,
+    bucket_name: str,
+    site_id: int,
+    screenshot_bytes: bytes,
+    screenshot_format: str
+) -> None:
+    """Uploads a screenshot file to a bucket."""
+    screenshot_key = f"screenshot_{site_id}.{screenshot_format}"
+    try:
+        await s3_client.put_object(
+            Bucket=bucket_name,
+            Key=screenshot_key,
+            Body=screenshot_bytes,
+            ContentType=f"image/{screenshot_format}"
+        )
+        logger.success(f"{screenshot_key} successfully saved to {bucket_name} bucket")
+    except ClientError as e:
+        logger.error(f"Failed to put {screenshot_key} into {bucket_name} bucket: {e}")
+        return
+    except Exception as e:
+        logger.exception(f"Unexpected error saving Screenshot to S3: {e}")
+        return
 
 
 async def create_site_record(
     s3_settings: S3Settings,
+    s3_client: AioBaseClient,
     site_id: int,
     title: str,
     prompt: str,
@@ -65,7 +102,41 @@ async def create_site_record(
         "created_at": datetime.now(),
         "updated_at": datetime.now()
     }
+
+    placeholder_html = """
+    <!DOCTYPE html>
+    <html lang="en">
+    <html>
+        <head>
+            <meta charset='utf-8'>
+            <style>
+                body {
+                    font-family: sans-serif;
+                    text-align: center;
+                    padding: 50px;
+                    color: #555;
+                }
+            </style>
+        </head>
+        <body>
+            <h2>Generation Error</h2>
+            <p>If you are seeing this page, an error occurred during the site generation process.</p>
+            <p>Try refreshing the page or regenerating the site.</p>
+        </body>
+    </html>
+    """
+    try:
+        await s3_client.put_object(
+            Bucket=s3_settings.BUCKET_NAME,
+            Key=f"site_{site_id}.html",
+            Body=placeholder_html.encode("utf-8"),
+            ContentType="text/html"
+        )
+    except Exception as e:
+        logger.error(f"Failed to create a placeholder for site {site_id}: {e}")
+
     database[site_id] = new_site
+    logger.info(f"Database record created for site {site_id}")
     return new_site
 
 
@@ -80,3 +151,4 @@ def update_site_title(database: dict, site_id: int, title: str) -> None:
     if site:
         database[site_id]["title"] = title
         database[site_id]["updated_at"] = datetime.now()
+        logger.info(f"Title updated for site {site_id} to {title}")

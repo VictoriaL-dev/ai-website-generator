@@ -53,6 +53,7 @@ class AppSettings(BaseSettings):
     HOST: str = "127.0.0.1"
     PORT: int = 8000
     DEBUG: bool = False
+    LOG_LEVEL: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = "INFO"
     FRONTEND_DIR: Path = Path("frontend")
 
     DEEP_SEEK: DeepSeekSettings

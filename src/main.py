@@ -1,14 +1,16 @@
 import random
+import time
 from contextlib import asynccontextmanager
 
 import aioboto3
 import httpx
 import uvicorn
 from aiobotocore.config import AioConfig
-from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from html_page_generator import AsyncDeepseekClient, AsyncUnsplashClient
+from loguru import logger
 
 from api_models import (
     CreateSiteRequest,
@@ -19,6 +21,7 @@ from api_models import (
 )
 from env_settings import load_settings
 from generator import generate_web_page
+from logging_config import init_logging, shutdown_logging
 from storage import create_site_record, ensure_bucket_exists, get_all_sites, update_site_title
 
 loaded_settings = load_settings()
@@ -30,6 +33,13 @@ async def lifespan(app: FastAPI):
     app.state.database = {}
 
     settings = app.state.settings
+
+    init_logging(
+        project_root=settings.project_root,
+        folder_name="logs",
+        log_file_name="app.log",
+        log_level=settings.LOG_LEVEL
+    )
 
     s3_config = AioConfig(
         s3={"addressing_style": "path"},
@@ -73,7 +83,12 @@ async def lifespan(app: FastAPI):
 
         await ensure_bucket_exists(s3_client=s3_client, bucket_name=settings.S3.BUCKET_NAME)
 
+        logger.info("Application started successfully")
+
         yield
+
+        logger.info("Application was shutdown successfully")
+        shutdown_logging()
 
 
 app = FastAPI(
@@ -81,6 +96,25 @@ app = FastAPI(
     description="AI-powered website generator built with FastAPI",
     lifespan=lifespan
 )
+
+
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    """Logs all the application's HTTP requests and responses."""
+    start_time = time.time()
+    path = request.url.path
+    method = request.method
+
+    logger.info(f"HTTP Request: {method} {path}")
+    try:
+        response = await call_next(request)
+        process_time = time.time() - start_time
+        logger.info(f"HTTP Response: {method} {path} | Status: {response.status_code} | Time: {process_time:.2f}s")
+        return response
+    except Exception as e:
+        process_time = time.time() - start_time
+        logger.error(f"HTTP Failed: {method} {path} | Error: {str(e)} | Time: {process_time:.2f}s")
+        raise
 
 
 @app.get(
@@ -112,12 +146,14 @@ async def get_user():
 async def create_site(payload: CreateSiteRequest, request: Request):
     settings = request.app.state.settings
     database = request.app.state.database
+    s3_client = request.app.state.s3_client
 
     site_id = random.randint(1, 100000)
     title = payload.title or "Generated Website"
 
     new_site = await create_site_record(
         s3_settings=settings.S3,
+        s3_client=s3_client,
         site_id=site_id,
         title=title,
         prompt=payload.prompt,
@@ -138,10 +174,8 @@ async def generate_site(site_id: int, payload: SiteGenerationRequest, request: R
 
     site = database.get(site_id)
     if not site:
-        return JSONResponse(
-            content={"status_code": 404, "detail": "Not Found"},
-            status_code=404
-        )
+        logger.warning(f"Generation rejected: site {site_id} not found")
+        raise HTTPException(status_code=404, detail="Site not found")
 
     async def handle_title(generated_title: str):
         update_site_title(database=database, site_id=site_id, title=generated_title)
@@ -183,10 +217,8 @@ async def get_site_by_id(site_id: int, request: Request):
 
     site = database.get(site_id)
     if not site:
-        return JSONResponse(
-            content={"status_code": 404, "detail": "Not Found"},
-            status_code=404
-        )
+        logger.warning(f"Fetch failed: site {site_id} not found")
+        raise HTTPException(status_code=404, detail="Site not found")
     return site
 
 

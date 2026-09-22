@@ -1,7 +1,7 @@
 [project]
 name = "ai-website-generator"
 version = "1.0.0"
-description = "AI-powered website generator built with FastAP."
+description = "AI-powered website generator built with FastAP"
 readme = "README.md"
 requires-python = "==3.13.*"
 dependencies = [
@@ -10,6 +10,7 @@ dependencies = [
     "fastapi[standard]==0.115.12",
     "gotenberg-api",
     "html-page-generator",
+    "loguru>=0.7.3",
     "pre-commit>=4.3.0",
     "pydantic>=2.11.7",
     "pydantic-settings>=2.15.0",

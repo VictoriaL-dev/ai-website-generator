@@ -16,12 +16,12 @@ this service allows users to generate clean `HTML`, `CSS`, and `JavaScript` code
 - **Operating System:** Linux, macOS, or Windows
 - **Language:** `Python 3.13+`
 - **Python Package Manager:** `uv`
-- **Simple Storage Service:** `MinIO` (via Docker)
+- **Logging:** `Loguru`
+- **Storage Service:** `MinIO` (via Docker)
 - **Validation & Configuration:** `pydantic` & `pydantic-settings`
 - **Asynchronous Framework:** `FastAPI`
 - **Web Page Generator:** `html-page-generator`
-- **AI Model API:** `DeepSeek`
-- **Content Provider API:** `Unsplash`
+- **Screenshot Rendering API:** `gotenberg-api`
 - **Containerization & Orchestration:** `Docker` & `Docker Compose`
 
 
@@ -32,6 +32,8 @@ this service allows users to generate clean `HTML`, `CSS`, and `JavaScript` code
 │   ├── api_models.py          # Pydantic models for API validation
 │   ├── env_settings.py        # Central application settings mapper
 │   ├── generator.py           # Module responsible for asynchronous site generation
+│   ├── logging_config.py      # Non-blocking asynchronous application logger
+│   ├── screenshot.py          # Module responsible for creating screenshots using the Gotenberg API
 │   ├── storage.py             # S3 (MinIO) integration module
 │   └── main.py                # Main application entry point
 ├── .env.example               # Example of environment variable configuration
@@ -104,6 +106,7 @@ Create a `.env` file in the root directory based on `.env.example`:
 HOST=127.0.0.1
 PORT=8000
 DEBUG=True
+LOG_LEVEL=INFO
 FRONTEND_DIR=frontend
 
 # DeepSeek

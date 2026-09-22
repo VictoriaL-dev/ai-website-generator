@@ -1,10 +1,10 @@
-import traceback
 from collections.abc import AsyncGenerator, Awaitable, Callable
 
 import anyio
 import httpx
 from fastapi import Request
 from html_page_generator import AsyncPageGenerator
+from loguru import logger
 
 from screenshot import create_and_save_screenshot
 from storage import save_html_to_s3
@@ -17,38 +17,67 @@ async def generate_web_page(
     request: Request,
     on_title_found: Callable[[str], Awaitable[None]] | None = None
 ) -> AsyncGenerator:
-    with anyio.CancelScope(shield=True):
-        try:
-            generator = AsyncPageGenerator(debug_mode=debug_mode)
-            title_saved = False
-            client_disconnected = False
+    logger.info(f"Starting web page generation pipeline for site {site_id}")
+    settings = request.app.state.settings
 
-            async for chunk in generator(user_prompt=user_prompt):
-                if not isinstance(chunk, str):
-                    chunk = str(chunk)
+    generator = AsyncPageGenerator(debug_mode=debug_mode)
+    title_saved = False
+    client_disconnected = False
 
-                yield chunk
+    try:
+        log_buffer = ""
+        async for chunk in generator(user_prompt=user_prompt):
+            yield str(chunk)
 
-                print(chunk, end="", flush=True)
+            if debug_mode and settings.LOG_LEVEL == "DEBUG":
+                log_buffer += chunk
+                if "\n" in log_buffer:
+                    lines = log_buffer.split("\n")
+                    for line in lines[:-1]:
+                        if line.strip():
+                            logger.debug(line)
+                    log_buffer = lines[-1]
 
-                if not title_saved and generator.html_page.title:
-                    if on_title_found:
-                        await on_title_found(generator.html_page.title)
-                    title_saved = True
+            if not title_saved and generator.html_page.title:
+                if on_title_found:
+                    await on_title_found(generator.html_page.title)
+                    logger.info(f"Site title resolved for site {site_id}: {generator.html_page.title}")
+                title_saved = True
 
-                if await request.is_disconnected():
-                    client_disconnected = True
-                    print("\nThe connection was terminated on the client side.")
-                    break
+            if await request.is_disconnected():
+                client_disconnected = True
+                logger.warning(f"Client disconnected early. Aborting generation for site {site_id}")
+                break
 
-            if not client_disconnected and generator.html_page.html_code:
+        if debug_mode and settings.LOG_LEVEL == "DEBUG" and log_buffer.strip():
+            logger.debug(log_buffer)
+    except anyio.get_cancelled_exc_class():
+        client_disconnected = True
+        logger.warning(f"Task cancelled for site {site_id}")
+        return
+    except httpx.ReadTimeout as e:
+        logger.warning(f"Read timeout for site {site_id}: {e}")
+        return
+    except httpx.HTTPStatusError as e:
+        logger.error(f"External service returned an error for site {site_id}: {e}")
+        return
+    except (httpx.ConnectTimeout, httpx.ConnectError, httpx.RequestError) as e:
+        logger.error(f"Network error connecting to external service for site {site_id}: {e}")
+        return
+    except Exception as e:
+        logger.exception(f"Unexpected error within the LLM generator for site {site_id}: {e}")
+        return
+
+    if not client_disconnected and generator.html_page.html_code:
+        with anyio.CancelScope(shield=True):
+            logger.info(f"Generation completed. Persisting assets for site {site_id} to S3 bucket...")
+            try:
                 await save_html_to_s3(
                     s3_client=request.app.state.s3_client,
                     bucket_name=request.app.state.settings.S3.BUCKET_NAME,
                     site_id=site_id,
                     html_code=generator.html_page.html_code
                 )
-                print(f"\nFile with ID {site_id} has been successfully saved to bucket.")
                 await create_and_save_screenshot(
                     site_id=site_id,
                     html_code=generator.html_page.html_code,
@@ -58,13 +87,7 @@ async def generate_web_page(
                     s3_settings=request.app.state.settings.S3,
                     database=request.app.state.database
                 )
-        except httpx.HTTPStatusError as e:
-            print(f"\nA third-party service returned an error: {e.response.status_code} - {e.response.text}.")
-            raise
-        except httpx.RequestError as e:
-            print(f"\nError connecting to external server: {e}")
-            raise
-        except Exception:
-            print("\nUnexpected error within the generator:")
-            traceback.print_exc()
-            raise
+                logger.success(f"Pipeline successfully finished for site {site_id}")
+            except Exception as e:
+                logger.exception(f"Critical error during post-generation persistence for site {site_id}: {e}")
+                return
