@@ -1,36 +1,43 @@
-from collections.abc import AsyncGenerator, Awaitable, Callable
+from collections.abc import AsyncGenerator
 
 import anyio
 import httpx
+from aiobotocore.client import AioBaseClient
 from fastapi import Request
 from html_page_generator import AsyncPageGenerator
 from loguru import logger
 
-from app.sites.screenshot import create_and_save_screenshot
+from app.sites.services import process_screenshot
+from core.env_settings import AppSettings
 from storage import save_html_to_s3
 
 
 async def generate_web_page(
     site_id: int,
     user_prompt: str,
-    debug_mode: bool,
+    settings: AppSettings,
     request: Request,
-    on_title_found: Callable[[str], Awaitable[None]] | None = None
+    s3_client: AioBaseClient,
+    gotenberg_client: httpx.AsyncClient,
+    database: dict
 ) -> AsyncGenerator:
+    """Generates a website page and yields its code chunks."""
     logger.info(f"Starting web page generation pipeline for site {site_id}")
-    settings = request.app.state.settings
+
+    debug_mode = settings.DEBUG
+    log_level = settings.LOG_LEVEL
 
     generator = AsyncPageGenerator(debug_mode=debug_mode)
     title_saved = False
     client_disconnected = False
+    log_buffer = ""
 
     try:
-        log_buffer = ""
         async for chunk in generator(user_prompt=user_prompt):
             yield str(chunk)
 
-            if debug_mode and settings.LOG_LEVEL == "DEBUG":
-                log_buffer += chunk
+            if debug_mode and log_level == "DEBUG":
+                log_buffer += str(chunk)
                 if "\n" in log_buffer:
                     lines = log_buffer.split("\n")
                     for line in lines[:-1]:
@@ -39,8 +46,9 @@ async def generate_web_page(
                     log_buffer = lines[-1]
 
             if not title_saved and generator.html_page.title:
-                if on_title_found:
-                    await on_title_found(generator.html_page.title)
+                site = database.get(site_id)
+                if site:
+                    site["title"] = generator.html_page.title
                     logger.info(f"Site title resolved for site {site_id}: {generator.html_page.title}")
                 title_saved = True
 
@@ -49,7 +57,7 @@ async def generate_web_page(
                 logger.warning(f"Client disconnected early. Aborting generation for site {site_id}")
                 break
 
-        if debug_mode and settings.LOG_LEVEL == "DEBUG" and log_buffer.strip():
+        if debug_mode and log_level == "DEBUG" and log_buffer.strip():
             logger.debug(log_buffer)
     except anyio.get_cancelled_exc_class():
         client_disconnected = True
@@ -70,22 +78,21 @@ async def generate_web_page(
 
     if not client_disconnected and generator.html_page.html_code:
         with anyio.CancelScope(shield=True):
-            logger.info(f"Generation completed. Persisting assets for site {site_id} to S3 bucket...")
+            logger.info(f"Website generation completed. Persisting assets for site {site_id} to S3 bucket...")
             try:
                 await save_html_to_s3(
-                    s3_client=request.app.state.s3_client,
-                    bucket_name=request.app.state.settings.S3.BUCKET_NAME,
+                    s3_client=s3_client,
+                    bucket_name=settings.S3.BUCKET_NAME,
                     site_id=site_id,
                     html_code=generator.html_page.html_code
                 )
-                await create_and_save_screenshot(
+                await process_screenshot(
                     site_id=site_id,
                     html_code=generator.html_page.html_code,
-                    gotenberg_client=request.app.state.gotenberg_client,
-                    gotenberg_settings=request.app.state.settings.GOTENBERG,
-                    s3_client=request.app.state.s3_client,
-                    s3_settings=request.app.state.settings.S3,
-                    database=request.app.state.database
+                    settings=settings,
+                    s3_client=s3_client,
+                    gotenberg_client=gotenberg_client,
+                    database=database
                 )
                 logger.success(f"Pipeline successfully finished for site {site_id}")
             except Exception as e:

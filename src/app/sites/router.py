@@ -6,7 +6,7 @@ from loguru import logger
 
 from app.sites.generator import generate_web_page
 from app.sites.schemas import CreateSiteRequest, GeneratedSitesResponse, SiteGenerationRequest, SiteResponse
-from storage import create_site_record, get_all_sites, update_site_title
+from storage import create_site_record, get_all_sites
 
 router = APIRouter(
     prefix="/sites",
@@ -46,6 +46,8 @@ async def create_site(payload: CreateSiteRequest, request: Request):
 )
 async def generate_site(site_id: int, payload: SiteGenerationRequest, request: Request):
     settings = request.app.state.settings
+    s3_client = request.app.state.s3_client
+    gotenberg_client = request.app.state.gotenberg_client
     database = request.app.state.database
 
     site = database.get(site_id)
@@ -53,16 +55,15 @@ async def generate_site(site_id: int, payload: SiteGenerationRequest, request: R
         logger.warning(f"Generation rejected: site {site_id} not found")
         raise HTTPException(status_code=404, detail="Site not found")
 
-    async def handle_title(generated_title: str):
-        update_site_title(database=database, site_id=site_id, title=generated_title)
-
     return StreamingResponse(
         generate_web_page(
             site_id=site_id,
             user_prompt=payload.prompt,
-            debug_mode=settings.DEBUG,
+            settings=settings,
             request=request,
-            on_title_found=handle_title
+            s3_client=s3_client,
+            gotenberg_client=gotenberg_client,
+            database=database,
         ),
         media_type="text/plain; charset=utf-8"
     )
