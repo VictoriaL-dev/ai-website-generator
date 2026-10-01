@@ -19,17 +19,17 @@ from api_models import (
     SiteResponse,
     UserDetailsResponse,
 )
-from env_settings import load_settings
+from env_settings import AppSettings
 from generator import generate_web_page
 from logging_config import init_logging, shutdown_logging
 from storage import create_site_record, ensure_bucket_exists, get_all_sites, update_site_title
 
-loaded_settings = load_settings()
+current_settings = AppSettings()
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    app.state.settings = loaded_settings
+    app.state.settings = current_settings
     app.state.database = {}
 
     settings = app.state.settings
@@ -222,13 +222,13 @@ async def get_site_by_id(site_id: int, request: Request):
     return site
 
 
-app.mount("/assets", StaticFiles(directory=loaded_settings.FRONTEND_DIR / "assets"), name="assets")
-app.mount("/", StaticFiles(directory=loaded_settings.FRONTEND_DIR, html=True), name="frontend")
+app.mount("/assets", StaticFiles(directory=current_settings.FRONTEND_DIR / "assets"), name="assets")
+app.mount("/", StaticFiles(directory=current_settings.FRONTEND_DIR, html=True), name="frontend")
 
 if __name__ == "__main__":
     uvicorn.run(
         "main:app",
-        host=loaded_settings.HOST,
-        port=loaded_settings.PORT,
-        reload=loaded_settings.DEBUG
+        host=current_settings.HOST,
+        port=current_settings.PORT,
+        reload=current_settings.DEBUG
     )
