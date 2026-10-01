@@ -29,21 +29,25 @@ this service allows users to generate clean `HTML`, `CSS`, and `JavaScript` code
 ```text
 .
 ├── src/                       # Main application source code folder
-│   ├── api_models.py          # Pydantic models for API validation
-│   ├── env_settings.py        # Central application settings mapper
-│   ├── generator.py           # Module responsible for asynchronous site generation
-│   ├── logging_config.py      # Non-blocking asynchronous application logger
-│   ├── screenshot.py          # Module responsible for creating screenshots using the Gotenberg API
+│   ├── core/                  # Core application configuration and logging
+│   │   ├── env_settings.py    # Central application settings mapper
+│   │   └── logging_config.py  # Non-blocking asynchronous application logger
+│   │
+│   ├── app/                   # Feature-based modules
+│   │   ├── sites/             # Website generation management and screenshot processing
+│   │   └── users/             # User management and authentication
+│   │
 │   ├── storage.py             # S3 (MinIO) integration module
 │   └── main.py                # Main application entry point
+│
 ├── .env.example               # Example of environment variable configuration
 ├── .editorconfig              # Consistent coding styles across different IDEs
 ├── .pre-commit-config.yaml    # Automates Git hooks to check code before commits
+├── docker-compose-dev.yaml    # Docker services orchestration
 ├── Makefile                   # Short commands for checking, formatting, and running the application
 ├── pyproject.toml             # Main configuration file for project metadata and tools
 ├── ruff.toml                  # Custom rules for the Ruff linter and formatter
-├── uv.lock                    # Lockfile ensuring deterministic and reproducible dependencies
-└── docker-compose-dev.yaml    # Docker services orchestration
+└── uv.lock                    # Lockfile ensuring deterministic and reproducible dependencies 
 ```
 
 

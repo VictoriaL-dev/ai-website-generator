@@ -6,7 +6,7 @@ from aiobotocore.client import AioBaseClient
 from botocore.exceptions import ClientError
 from loguru import logger
 
-from env_settings import S3Settings
+from core.env_settings import S3Settings
 
 
 async def ensure_bucket_exists(s3_client: AioBaseClient, bucket_name: str) -> None:

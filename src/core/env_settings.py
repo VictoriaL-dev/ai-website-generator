@@ -78,7 +78,7 @@ class AppSettings(BaseSettings):
 
     @classmethod
     def _get_project_root(cls) -> Path:
-        return Path(__file__).resolve().parent.parent
+        return Path(__file__).resolve().parent.parent.parent
 
     @field_validator("FRONTEND_DIR")
     @classmethod

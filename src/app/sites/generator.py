@@ -6,7 +6,7 @@ from fastapi import Request
 from html_page_generator import AsyncPageGenerator
 from loguru import logger
 
-from screenshot import create_and_save_screenshot
+from app.sites.screenshot import create_and_save_screenshot
 from storage import save_html_to_s3
 
 

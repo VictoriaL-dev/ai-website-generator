@@ -5,7 +5,7 @@ from aiobotocore.client import AioBaseClient
 from gotenberg_api import GotenbergServerError, ScreenshotHTMLRequest
 from loguru import logger
 
-from env_settings import GotenbergSettings, S3Settings
+from core.env_settings import GotenbergSettings, S3Settings
 from storage import save_screenshot_to_s3
 
 
