@@ -18,8 +18,8 @@ StrHttpUrl = Annotated[str, BeforeValidator(lambda url: str(HttpUrl(url)))]
 
 
 class DeepSeekSettings(BaseModel):
-    API_KEY: SecretStr
     BASE_URL: StrHttpUrl
+    API_KEY: SecretStr
     MODEL: str
     MAX_CONNECTIONS: PositiveInt = 5
     TIMEOUT: PositiveInt | PositiveFloat = 20
@@ -37,8 +37,6 @@ class UnsplashSettings(BaseModel):
 
 class S3Settings(BaseModel):
     BASE_URL: StrHttpUrl = StrHttpUrl("http://127.0.0.1:9000")
-    API_PORT: PositiveInt = Field(default=9000, gt=0, lt=65535)
-    MINIO_PORT: PositiveInt = Field(default=9001, gt=0, lt=65535)
     ACCESS_KEY: str
     SECRET_KEY: SecretStr
     BUCKET_NAME: str = "generated-sites"
@@ -62,7 +60,7 @@ class GotenbergSettings(BaseModel):
 
 class AppSettings(BaseSettings):
     HOST: str = "127.0.0.1"
-    PORT: PositiveInt = Field(default=8000, gt=0, lt=65535)
+    PORT: PositiveInt = Field(default=8000, gt=0, le=65535)
     DEBUG: bool = False
     LOG_LEVEL: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = "INFO"
     FRONTEND_DIR: Path = Path("frontend")
@@ -92,6 +90,6 @@ class AppSettings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
-        extra="forbid",
+        extra="ignore",
         env_nested_delimiter="__"
     )

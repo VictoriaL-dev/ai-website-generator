@@ -6,7 +6,7 @@ from loguru import logger
 
 from app.sites.generator import generate_web_page
 from app.sites.schemas import CreateSiteRequest, GeneratedSitesResponse, SiteGenerationRequest, SiteResponse
-from storage import create_site_record, get_all_sites
+from app.sites.services import create_site_record, get_all_sites
 
 router = APIRouter(
     prefix="/sites",
@@ -21,20 +21,16 @@ router = APIRouter(
     response_model=SiteResponse
 )
 async def create_site(payload: CreateSiteRequest, request: Request):
-    settings = request.app.state.settings
-    database = request.app.state.database
-    s3_client = request.app.state.s3_client
+    db = request.app.state.database
 
     site_id = random.randint(1, 1000000)
     title = payload.title or "Generated Website"
 
     new_site = await create_site_record(
-        s3_settings=settings.S3,
-        s3_client=s3_client,
+        db=db,
         site_id=site_id,
         title=title,
-        prompt=payload.prompt,
-        database=database
+        prompt=payload.prompt
     )
     return new_site
 
@@ -44,26 +40,26 @@ async def create_site(payload: CreateSiteRequest, request: Request):
     summary="Generate a website with AI stream",
     response_description="Chunks of HTML code from the generated website",
 )
-async def generate_site(site_id: int, payload: SiteGenerationRequest, request: Request):
+async def generate_site(payload: SiteGenerationRequest, request: Request, site_id: int):
     settings = request.app.state.settings
     s3_client = request.app.state.s3_client
     gotenberg_client = request.app.state.gotenberg_client
-    database = request.app.state.database
+    db = request.app.state.database
 
-    site = database.get(site_id)
+    site = db.get(site_id)
     if not site:
-        logger.warning(f"Generation rejected: site {site_id} not found")
+        logger.warning(f"Generation rejected: site_{site_id} not found")
         raise HTTPException(status_code=404, detail="Site not found")
 
     return StreamingResponse(
         generate_web_page(
-            site_id=site_id,
-            user_prompt=payload.prompt,
-            settings=settings,
-            request=request,
+            db=db,
             s3_client=s3_client,
             gotenberg_client=gotenberg_client,
-            database=database,
+            settings=settings,
+            request=request,
+            site_id=site_id,
+            user_prompt=payload.prompt
         ),
         media_type="text/plain; charset=utf-8"
     )
@@ -76,8 +72,8 @@ async def generate_site(site_id: int, payload: SiteGenerationRequest, request: R
     response_model=GeneratedSitesResponse
 )
 async def get_user_sites(request: Request):
-    database = request.app.state.database
-    sites = get_all_sites(database=database)
+    db = request.app.state.database
+    sites = get_all_sites(db=db)
     return {"sites": sites}
 
 
@@ -87,11 +83,11 @@ async def get_user_sites(request: Request):
     response_description="HTML code of the generated website",
     response_model=SiteResponse
 )
-async def get_site_by_id(site_id: int, request: Request):
-    database = request.app.state.database
+async def get_site_by_id(request: Request, site_id: int):
+    db = request.app.state.database
 
-    site = database.get(site_id)
+    site = db.get(site_id)
     if not site:
-        logger.warning(f"Fetch failed: site {site_id} not found")
+        logger.warning(f"Fetch failed: site_{site_id} not found")
         raise HTTPException(status_code=404, detail="Site not found")
     return site

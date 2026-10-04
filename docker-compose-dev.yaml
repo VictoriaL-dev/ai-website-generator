@@ -3,8 +3,8 @@ services:
     image: quay.io/minio/minio:latest
     container_name: minio-dev
     ports:
-      - "${S3__API_PORT}:9000"
-      - "${S3__MINIO_PORT}:9001"
+      - "${MINIO_API_PORT}:9000"
+      - "${MINIO_CONSOLE_PORT}:9001"
     environment:
       MINIO_ROOT_USER: ${S3__ACCESS_KEY}
       MINIO_ROOT_PASSWORD: ${S3__SECRET_KEY}
@@ -25,7 +25,7 @@ services:
         condition: service_healthy
     entrypoint: >
       /bin/sh -c "
-      mc alias set my-minio http://minio:${S3__API_PORT} ${S3__ACCESS_KEY} ${S3__SECRET_KEY};
+      mc alias set my-minio http://minio:${MINIO_API_PORT} ${S3__ACCESS_KEY} ${S3__SECRET_KEY};
       mc mb --ignore-existing my-minio/${S3__BUCKET_NAME};
       mc anonymous set public my-minio/${S3__BUCKET_NAME};
       "

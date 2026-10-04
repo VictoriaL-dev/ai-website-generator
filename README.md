@@ -32,11 +32,9 @@ this service allows users to generate clean `HTML`, `CSS`, and `JavaScript` code
 │   ├── core/                  # Core application configuration and logging
 │   │   ├── env_settings.py    # Central application settings mapper
 │   │   └── logging_config.py  # Non-blocking asynchronous application logger
-│   │
-│   ├── app/                   # Feature-based modules
+│   ├── app/
 │   │   ├── sites/             # Website generation management and screenshot processing
 │   │   └── users/             # User management and authentication
-│   │
 │   ├── storage.py             # S3 (MinIO) integration module
 │   └── main.py                # Main application entry point
 │
@@ -114,8 +112,8 @@ LOG_LEVEL=INFO
 FRONTEND_DIR=frontend
 
 # DeepSeek
-DEEP_SEEK__API_KEY=your_secret_deepseek_api_key
 DEEP_SEEK__BASE_URL=your_deepseek_base_url
+DEEP_SEEK__API_KEY=your_secret_deepseek_api_key
 DEEP_SEEK__MODEL=your_deepseek_model_name
 DEEP_SEEK__MAX_CONNECTIONS=5
 DEEP_SEEK__TIMEOUT=20
@@ -125,16 +123,17 @@ UNSPLASH__API_KEY=your_secret_unsplash_api_key
 UNSPLASH__MAX_CONNECTIONS=5
 UNSPLASH__TIMEOUT=20
 
-# MinIO (S3)
+# S3 (MinIO)
 S3__BASE_URL=http://127.0.0.1:9000
-S3__API_PORT=9000
-S3__MINIO_PORT=9001
 S3__ACCESS_KEY=minioadmin
 S3__SECRET_KEY=your_secret_minio_password
 S3__BUCKET_NAME=generated-sites
 S3__MAX_CONNECTIONS=5
 S3__CONNECTION_TIMEOUT=10
 S3__READ_TIMEOUT=10
+
+MINIO_API_PORT=9000
+MINIO_CONSOLE_PORT=9001
 
 # Gotenberg
 GOTENBERG__BASE_URL=https://demo.gotenberg.dev
