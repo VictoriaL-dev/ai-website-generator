@@ -12,10 +12,6 @@ from core.env_settings import AppSettings
 from storage import save_html_to_s3
 
 
-class HtmlSavingError(Exception):
-    pass
-
-
 async def generate_web_page(
     db: dict,
     s3_client: AioBaseClient,
@@ -93,10 +89,6 @@ async def generate_web_page(
                     site_id=site_id,
                     html_code=site_html_code
                 )
-
-                if not site_key:
-                    raise HtmlSavingError(f"Failed to save html code for site_{site_id} to a bucket")
-
                 screenshot_key = await process_screenshot(
                     gotenberg_client=gotenberg_client,
                     s3_client=s3_client,
@@ -113,9 +105,6 @@ async def generate_web_page(
                     screenshot_key=screenshot_key
                 )
                 logger.success(f"Pipeline successfully finished for site_{site_id}")
-            except HtmlSavingError as e:
-                logger.critical(e)
-                return
             except Exception as e:
-                logger.exception(f"Unexpected error during post-generation persistence for site_{site_id}: {e}")
+                logger.exception(f"Error during post-generation persistence for site_{site_id}: {e}")
                 return

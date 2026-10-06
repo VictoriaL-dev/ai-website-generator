@@ -10,7 +10,7 @@ async def generate_screenshot(
     gotenberg_settings: GotenbergSettings,
     site_id: int,
     html_code: str
-) -> bytes | None:
+) -> bytes:
     """Generates a screenshot for the created website using the Gotenberg API."""
     logger.info(f"Requesting screenshot from Gotenberg for site_{site_id}")
     try:
@@ -21,10 +21,10 @@ async def generate_screenshot(
             wait_delay=gotenberg_settings.ANIMATION_TIMEOUT,
         ).asend(gotenberg_client)
         logger.success(f"Successfully generated a screenshot for site_{site_id}")
-        return screenshot_bytes or None
+        return screenshot_bytes
     except GotenbergServerError as e:
         logger.error(f"Gotenberg rendering engine failed for site_{site_id}: {e}")
-        return None
+        raise
     except Exception as e:
         logger.exception(f"Unexpected error during screenshot generation for site_{site_id}: {e}")
-        return None
+        raise

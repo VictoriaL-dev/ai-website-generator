@@ -38,18 +38,14 @@ async def process_screenshot(
     settings: AppSettings,
     site_id: int,
     html_code: str
-) -> str | None:
-    """Generates a screenshot via Gotenberg API and saves it to S3 bucket."""
+) -> str:
+    """Generates a screenshot via Gotenberg API and saves it to a bucket."""
     screenshot_bytes = await generate_screenshot(
         gotenberg_client=gotenberg_client,
         gotenberg_settings=settings.GOTENBERG,
         site_id=site_id,
         html_code=html_code
     )
-
-    if not screenshot_bytes:
-        return None
-
     screenshot_key = await save_screenshot_to_s3(
         s3_client=s3_client,
         bucket_name=settings.S3.BUCKET_NAME,
@@ -57,7 +53,7 @@ async def process_screenshot(
         screenshot_bytes=screenshot_bytes,
         screenshot_format=settings.GOTENBERG.SCREENSHOT_FORMAT
     )
-    return screenshot_key or None
+    return screenshot_key
 
 
 def update_site_artifacts(
@@ -66,9 +62,9 @@ def update_site_artifacts(
     site_id: int,
     site_title: str,
     site_key: str,
-    screenshot_key: str | None
+    screenshot_key: str
 ) -> None:
-    """Updates the site metadata."""
+    """Updates the site artifacts in the database."""
     base_url = s3_settings.BASE_URL
     html_file_path = f"{s3_settings.BUCKET_NAME}/{site_key}"
     html_file_url = urljoin(base_url, html_file_path)
@@ -84,15 +80,15 @@ def update_site_artifacts(
     html_code_url = f"{html_file_url}?{preview_params}"
     html_code_download_url = f"{html_file_url}?{download_params}"
 
-    screenshot_url = None
-    if screenshot_key:
-        screenshot_path = f"{s3_settings.BUCKET_NAME}/{screenshot_key}"
-        screenshot_url = urljoin(base_url, screenshot_path)
+    screenshot_path = f"{s3_settings.BUCKET_NAME}/{screenshot_key}"
+    screenshot_url = urljoin(base_url, screenshot_path)
 
     site = db.get(site_id)
 
-    site["title"] = site_title
-    site["html_code_url"] = html_code_url
-    site["html_code_download_url"] = html_code_download_url
-    site["screenshot_url"] = screenshot_url
-    site["updated_at"] = datetime.now()
+    site.update({
+        "title": site_title,
+        "html_code_url": html_code_url,
+        "html_code_download_url": html_code_download_url,
+        "screenshot_url": screenshot_url,
+        "updated_at": datetime.now()
+    })

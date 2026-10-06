@@ -12,7 +12,7 @@ async def ensure_bucket_exists(s3_client: AioBaseClient, bucket_name: str) -> No
         raise RuntimeError(f"Bucket {bucket_name} not found")
 
 
-async def save_html_to_s3(s3_client: AioBaseClient, bucket_name: str, site_id: int, html_code: str) -> str | None:
+async def save_html_to_s3(s3_client: AioBaseClient, bucket_name: str, site_id: int, html_code: str) -> str:
     """Uploads a file with the `text/html` type to a bucket."""
     site_key = f"site_{site_id}.html"
     try:
@@ -27,10 +27,10 @@ async def save_html_to_s3(s3_client: AioBaseClient, bucket_name: str, site_id: i
         return site_key
     except ClientError as e:
         logger.error(f"Failed to put {site_key} into {bucket_name} bucket: {e}")
-        return None
+        raise
     except Exception as e:
         logger.exception(f"Unexpected error saving {site_key} to {bucket_name} bucket: {e}")
-        return None
+        raise
 
 
 async def save_screenshot_to_s3(
@@ -39,7 +39,7 @@ async def save_screenshot_to_s3(
     site_id: int,
     screenshot_bytes: bytes,
     screenshot_format: str
-) -> str | None:
+) -> str:
     """Uploads a screenshot file to a bucket."""
     screenshot_key = f"screenshot_{site_id}.{screenshot_format}"
     try:
@@ -53,7 +53,7 @@ async def save_screenshot_to_s3(
         return screenshot_key
     except ClientError as e:
         logger.error(f"Failed to put {screenshot_key} into {bucket_name} bucket: {e}")
-        return None
+        raise
     except Exception as e:
         logger.exception(f"Unexpected error saving {screenshot_key} to {bucket_name} bucket: {e}")
-        return None
+        raise
